@@ -410,7 +410,7 @@ classUnset[class_] :=
     ];
 (*20230410: I have forgot why skip Keys.*)
 (*20230523: The reason is to suppress classUnset if Keys fails to return.
-See the line at the beginning: classUnset/@Keys[classData]//Quietw32*)
+See the line at the beginning: classUnset/@Keys[classData]//Quiet*)
 classUnset[input_Keys] :=
     Identity[input];
 
