@@ -6,9 +6,14 @@
 
 BeginPackage["lily`class`"];
 
+
 classUnset/@Keys[classData]//Quiet;
 Unprotect@@Names[$Context<>"*"];
 ClearAll@@DeleteCases[Names[$Context<>"*"],"classData"|"instanceData"|"instanceDefaultData"];
+
+
+(* ::Section:: *)
+(*Usage*)
 
 
 (*class + instance + member + structure*) 
@@ -52,11 +57,15 @@ instancePostIntercept::usage =
     "reserved function to modify the post-process of instance methods.";
 
 
-Begin["`Private`"];
-
-
 (* ::Section:: *)
 (*Private*)
+
+
+(* ::Subsection:: *)
+(*Begin*)
+
+
+Begin["`Private`"];
 
 
 (* ::Subsection:: *)
@@ -122,6 +131,7 @@ messageHideContext[args__] :=
         Message[args]
     ];
 
+(*https://mathematica.stackexchange.com/a/225722/86893*)
 mergeByKey[rules:{___Rule},default:_:Identity][data:{___?AssociationQ}] :=
     mergeByKey[data,rules,default];
 mergeByKey[{<||>...},{___Rule},Repeated[_,{0,1}]] :=
@@ -751,13 +761,19 @@ instanceDelete`kernel[class_,instance_,member_,elementList_] :=
     ];
 
 
-(* ::Section:: *)
+(* ::Subsection:: *)
 (*End*)
 
 
 End[];
 
+
+(* ::Section:: *)
+(*End*)
+
+
 Protect@@Names[$Context<>"*"];
 Unprotect["classData","instanceData","instanceDefaultData"];
+
 
 EndPackage[];
