@@ -20,10 +20,10 @@ ClearAll@@DeleteCases[Names[$Context<>"*"],"classData"|"instanceData"|"instanceD
 
 classData::usage = 
     "store the data of classes.";
-classDefine::usage = 
-    "define and initiate the class.";
 classDefineQ::usage = 
     "check whether the class is defined.";
+classDefine::usage = 
+    "define and initiate the class.";
 classProtect::usage = 
     "protect the defined class against classUnset. The protected class will not be unset when reloading the package.";
 classUnset::usage = 
@@ -39,6 +39,8 @@ instanceDefaultData::usage =
 instanceDefault::usage = 
     "set the instances into default.";
 
+instanceDefineQ::usage = 
+    "check whether the instance is defined, or split the list of instances into defined and undefined.";
 instanceDefine::usage = 
     "define the instances.";
 instanceReset::usage = 
@@ -443,58 +445,75 @@ classProtect[class_,state_?BooleanQ] :=
 
 
 (* ::Subsubsection:: *)
+(*instanceExistQ*)
+
+
+instanceDefineQ[class_,instance_] :=
+    KeyExistsQ[instanceData[class],instance];
+instanceDefineQ[class_,instanceList_List] :=
+    instanceDefineQ`kernel[class,instanceList];
+    
+
+instanceDefineQ`kernel[class_,instanceList_] :=
+    <|
+        True->Intersection[
+            instanceList,
+            Keys@instanceData[class]
+        ],
+        False->Complement[
+            instanceList,
+            Keys@instanceData[class]
+        ]
+    |>;
+
+
+(* ::Subsubsection:: *)
 (*instanceDefineCheck*)
 
 
 instanceDefineCheck::usage = 
     "the inputs will be checked by this private method before calling public methods.";
 instanceDefineCheck::classundef =
-    "the class `` has not been defined.";
+    "the class `` is undefined.";
 instanceDefineCheck::insundef =
-    "the instance `` has not been defined.";
+    "the instance `` is undefined.";
 instanceDefineCheck::insdef =
     "the instance `` has been defined.";
 instanceDefineCheck::memundef =
-    "the member `` has not been defined.";
+    "the member `` is undefined.";
 
-instanceDefineCheck["ifClassNotDefined"][class_] :=
+instanceDefineCheck["classAbortUndef"][class_] :=
     If[ classDefineQ[class]===False,
         messageHideContext[instanceDefineCheck::classundef,class];
         Abort[]
     ];
 
-instanceDefineCheck["ifInstanceNotDefined"][class_,instanceList_] :=
-    Module[ {instanceNotDefList},
-        instanceNotDefList = Complement[
-            instanceList,
-            Keys@instanceData[class]
+instanceDefineCheck["instanceReportUndefAndReturnDef"][class_,instanceList_] :=
+    Module[ {instanceIfExist},
+        instanceIfExist = instanceDefineQ`kernel[class,instanceList];
+        If[ instanceIfExist[False]=!={},
+            messageHideContext[instanceDefineCheck::insundef,instanceIfExist[False]]
         ];
-        If[ instanceNotDefList=!={},
-            messageHideContext[instanceDefineCheck::insundef,instanceNotDefList];
-            Abort[]
-        ];
+        instanceIfExist[True]
     ];
 
-instanceDefineCheck["ifInstanceHasDefined"][class_,instanceList_] :=
-    Module[ {instanceHasDefList},
-        instanceHasDefList = Intersection[
-            instanceList,
-            Keys@instanceData[class]
+instanceDefineCheck["instanceReportDefAndReturnUndef"][class_,instanceList_] :=
+    Module[ {instanceIfExist},
+        instanceIfExist = instanceDefineQ`kernel[class,instanceList];
+        If[ instanceIfExist[True]=!={},
+            messageHideContext[instanceDefineCheck::insdef,instanceIfExist[True]]
         ];
-        If[ instanceHasDefList=!={},
-            messageHideContext[instanceDefineCheck::insdef,instanceHasDefList];
-            Abort[]
-        ];
+        instanceIfExist[False]
     ];
     
-instanceDefineCheck["ifMemberNotDefined"][class_,memberList_] :=
-    Module[ {memberNotDefList},
-        memberNotDefList = Complement[
+instanceDefineCheck["memberAbortUndef"][class_,memberList_] :=
+    Module[ {memberUndefList},
+        memberUndefList = Complement[
             memberList,
             classData[class,"memberList"]
         ];
-        If[ memberNotDefList=!={},
-            messageHideContext[instanceDefineCheck::memundef,memberNotDefList];
+        If[ memberUndefList=!={},
+            messageHideContext[instanceDefineCheck::memundef,memberUndefList];
             Abort[]
         ];
     ];
@@ -537,12 +556,12 @@ instanceDefaultUpdate[class_] :=
 
 
 instanceDefine[class_,instanceList_List,property_:Null] :=
-    Module[ {},
+    Module[ {instanceUndefList},
         (*check existence of class and instance*)
-        instanceDefineCheck["ifClassNotDefined"][class];
-        instanceDefineCheck["ifInstanceHasDefined"][class,instanceList];
+        instanceDefineCheck["classAbortUndef"][class];
+        instanceUndefList = instanceDefineCheck["instanceReportDefAndReturnUndef"][class,instanceList];
         (*kernel*)
-        instanceDefine`kernel[class,#,property]&/@instanceList;
+        instanceDefine`kernel[class,#,property]&/@instanceUndefList;
     ];
 instanceDefine`kernel[class_,instance_,property_:Null] :=
     Module[ {newInstance},
@@ -572,12 +591,12 @@ instanceDefine`kernel[class_,instance_,property_:Null] :=
 
 
 instanceDefault[class_,instanceList_List] :=
-    Module[ {},
+    Module[ {instanceDefList},
         (*check existence of class and instance*)
-        instanceDefineCheck["ifClassNotDefined"][class];
-        instanceDefineCheck["ifInstanceNotDefined"][class,instanceList];
+        instanceDefineCheck["classAbortUndef"][class];
+        instanceDefList = instanceDefineCheck["instanceReportUndefAndReturnDef"][class,instanceList];
         (*kernel*)
-        instanceDefault`kernel[class,instanceList];
+        instanceDefault`kernel[class,instanceDefList];
         (*update the default instance*)
         instanceDefaultUpdate[class];
     ];
@@ -600,12 +619,12 @@ instanceDefault`kernel[class_,instanceList_] :=
 
 
 instanceReset[class_,instanceList_List] :=
-    Module[ {},
+    Module[ {instanceDefList},
         (*check existence of class and instance*)
-        instanceDefineCheck["ifClassNotDefined"][class];
-        instanceDefineCheck["ifInstanceNotDefined"][class,instanceList];
+        instanceDefineCheck["classAbortUndef"][class];
+        instanceDefList = instanceDefineCheck["instanceReportUndefAndReturnDef"][class,instanceList];
         (*kernel*)
-        instanceReset`kernel[class,#]&/@instanceList;
+        instanceReset`kernel[class,#]&/@instanceDefList;
         (*update the default instance*)
         instanceDefaultUpdate[class];
     ];
@@ -633,13 +652,13 @@ instanceReset`kernel[class_,instance_] :=
 
 
 instanceUnset[class_,instanceList_List] :=
-    Module[ {},
+    Module[ {instanceDefList},
         (*check existence of class and instance*)
-        instanceDefineCheck["ifClassNotDefined"][class];
-        instanceDefineCheck["ifInstanceNotDefined"][class,instanceList];
-        instanceUnset`kernel[class,#]&/@instanceList;
+        instanceDefineCheck["classAbortUndef"][class];
+        instanceDefList = instanceDefineCheck["instanceReportUndefAndReturnDef"][class,instanceList];
+        instanceUnset`kernel[class,#]&/@instanceDefList;
         (*remove the instances in both the input and default instance list*)
-        instanceUnset`updateInstanceDefaultList[class,instanceList];
+        instanceUnset`updateInstanceDefaultList[class,instanceDefList];
         (*update the default instance*)
         instanceDefaultUpdate[class];
     ];
@@ -682,13 +701,13 @@ instanceUnset`updateInstanceDefaultList[class_,instanceList_] :=
 
 
 instanceAdd[class_,instanceList_List,memberRuleOrAssoc_] :=
-    Module[ {memberAssoc,memberList},
+    Module[ {memberAssoc,memberList,instanceDefList},
         memberAssoc = Association[memberRuleOrAssoc];
         memberList = Keys@memberAssoc;
         (*check existence of class, instance and member*)
-        instanceDefineCheck["ifClassNotDefined"][class];
-        instanceDefineCheck["ifInstanceNotDefined"][class,instanceList];
-        instanceDefineCheck["ifMemberNotDefined"][class,memberList];
+        instanceDefineCheck["classAbortUndef"][class];
+        instanceDefList = instanceDefineCheck["instanceReportUndefAndReturnDef"][class,instanceList];
+        instanceDefineCheck["memberAbortUndef"][class,memberList];
         (*kernel*)
         Function[
             instance,
@@ -696,7 +715,7 @@ instanceAdd[class_,instanceList_List,memberRuleOrAssoc_] :=
                 instanceAdd`kernel[class,instance,#1,#2]&,
                 memberAssoc
             ]
-        ]/@instanceList;
+        ]/@instanceDefList;
         (*update the default instance*)
         instanceDefaultUpdate[class];
     ];
@@ -724,13 +743,13 @@ instanceAdd`kernel[class_,instance_,member_,elementList_] :=
 
 
 instanceDelete[class_,instanceList_List,memberRuleOrAssoc_] :=
-    Module[ {memberAssoc,memberList},
+    Module[ {memberAssoc,memberList,instanceDefList},
         memberAssoc = Association[memberRuleOrAssoc];
         memberList = Keys@memberAssoc;
         (*check existence of class, instance and member*)
-        instanceDefineCheck["ifClassNotDefined"][class];
-        instanceDefineCheck["ifInstanceNotDefined"][class,instanceList];
-        instanceDefineCheck["ifMemberNotDefined"][class,memberList];
+        instanceDefineCheck["classAbortUndef"][class];
+        instanceDefList = instanceDefineCheck["instanceReportUndefAndReturnDef"][class,instanceList];
+        instanceDefineCheck["memberAbortUndef"][class,memberList];
         (*kernel*)
         Function[
             instance,
@@ -738,7 +757,7 @@ instanceDelete[class_,instanceList_List,memberRuleOrAssoc_] :=
                 instanceDelete`kernel[class,instance,#1,#2]&,
                 memberAssoc
             ]
-        ]/@instanceList;
+        ]/@instanceDefList;
         (*update the default instance*)
         instanceDefaultUpdate[class];
     ];
