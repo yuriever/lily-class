@@ -74,23 +74,19 @@ Begin["`Private`"];
 (*lily`base`*)
 
 
-pink[expr_] :=
-    Style[expr,RGBColor[1,0.5,0.5]];
-violet[expr_] :=
-    Style[expr,RGBColor[0.5,0.5,1]];
-orange[expr_] :=
-    Style[expr,RGBColor[1,0.5,0]];
-
 complement[list1_List,ruleList:{(_Rule|_RuleDelayed)..}] :=
     DeleteCases[list1,Alternatives@@Verbatim/@ruleList];
 complement[list1_List,list2_List] :=
     DeleteCases[list1,Alternatives@@list2];
 
-complementFromLast[list1_,list2_] :=
-    Module[ {fun},
-        fun[$$list_,{pattern_,part_}] :=
-            DeleteCases[$$list,pattern,{1},part];
-        Fold[fun,Reverse@list1,Tally@list2]//Reverse
+complementFromLast::usage =
+    "drop elements from last.\n"<>
+    "complementFromLast[list1_,list2_] is equivalent to Reverse@DeleteElements[Reverse@list1_,1->list2_].";
+complementFromLast[list1_List,list2_List] :=
+    Reverse@Fold[
+        Function[{list,{pattern,part}},DeleteCases[list,pattern,{1},part]],
+        Reverse@list1,
+        Tally@list2
     ];
 
 symbolAdd[symbols__Symbol] :=
@@ -98,18 +94,6 @@ symbolAdd[symbols__Symbol] :=
     
 symbolDelete[symbols__Symbol] :=
     Null;
-
-echo//Attributes = {HoldAll};
-echo[code_] :=
-    Module[ {codeResult},
-        codeResult = code;
-        Print[
-            pink@ToString@Unevaluated@code,
-            " = ",
-            violet@codeResult
-        ];
-        codeResult
-    ];
 
 initiate/:(set:Set|SetDelayed|UpSet|UpSetDelayed)[initiate[expr_],value_]:=
     If[ ValueQ[expr,Method->"TrialEvaluation"],
@@ -122,52 +106,44 @@ initiate/:(set:TagSet|TagSetDelayed)[tag_,initiate[expr_],value_] :=
         set[tag,expr,value]
     ];
 
-hideContext/:MakeBoxes[hideContext[expr_],form_] := 
-    Block[ {Internal`$ContextMarks = False},
-        MakeBoxes[expr,form]
-    ];
-
 messageHideContext//Attributes = {HoldFirst};
 messageHideContext[args__] :=
     Block[ {Internal`$ContextMarks = False},
         Message[args]
     ];
 
-(*https://mathematica.stackexchange.com/a/225722/86893*)
-mergeByKey[rules:{___Rule},default:_:Identity][data:{___?AssociationQ}] :=
-    mergeByKey[data,rules,default];
+mergeByKey::usage =
+    "ResourceFunction[\"MergeByKey\"]: merge a list of associations using different merge functions according to keys. The default merging function is Identity.\n"<>
+    "mergeByKey[{assoc1,assoc2,...},{key1->f1,key2->f2,...},f]\n"<>
+    "mergeByKey[{assoc1,assoc2,...},{...,{keyi1,keyi2,...}->fi,...},...]";
+mergeByKey[ruleList:{___Rule},default:_:Identity][data:{___?AssociationQ}] :=
+    mergeByKey[data,ruleList,default];
 mergeByKey[{<||>...},{___Rule},Repeated[_,{0,1}]] :=
     <||>;
-mergeByKey[data:{__?AssociationQ},rules:{___Rule},default:_:Identity] :=
-    Module[ {
-            (* unique symbol that is used for identifying where the undefined keys were after transposing the association *)
-            missingToken,
-            assoc,
-            keys,
-            queryRules,
-            mergeRules = 
-                Replace[
-                    Flatten@Replace[
-                        rules,
-                        Verbatim[Rule][lst_List,fun_]:>Thread[lst->fun],
-                        {1}
-                    ],
-                    Verbatim[Rule][Key[k_],fun_]:>k->fun,
+mergeByKey[data:{__?AssociationQ},ruleList:{___Rule},default:_:Identity] :=
+    Module[ {missingToken,assoc,keys,queryRules,mergeRules},
+        (*missingToken: unique symbol that is used for identifying where the undefined keys were after transposing the association *)
+        mergeRules = 
+            Replace[
+                Flatten@Replace[
+                    ruleList,
+                    Verbatim[Rule][list_List,fun_]:>Thread[list->fun],
                     {1}
                 ],
-            keysSameQ = SameQ@@Keys[data]
-        },
-        (* avoid KeyUnion if it's not necessary *)
-        If[ keysSameQ,
+                Verbatim[Rule][Key[k_],fun_]:>Rule[k,fun],
+                {1}
+            ];
+        (*avoid KeyUnion if it's not necessary.*)
+        If[ SameQ@@Keys[data],
             assoc = data,
             assoc = KeyUnion[DeleteCases[data,<||>],missingToken&]
         ];
-        keys = Keys[First@assoc];
-        (* this is essentially how GeneralUtilities`AssociationTranspose works *)
+        keys = Keys@First@assoc;
+        (*this is essentially how GeneralUtilities`AssociationTranspose works.*)
         assoc = 
             AssociationThread[
                 keys,
-                If[ keysSameQ,
+                If[ SameQ@@Keys[data],
                     Transpose@Values[assoc],
                     DeleteCases[Transpose@Values[assoc],missingToken,{2}]
                 ]
@@ -185,9 +161,6 @@ mergeByKey[data:{__?AssociationQ},rules:{___Rule},default:_:Identity] :=
             assoc
         ]
     ];
-
-associationTranspose =
-    GeneralUtilities`AssociationTranspose;
 
 
 (* ::Subsection:: *)
