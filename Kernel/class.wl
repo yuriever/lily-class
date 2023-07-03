@@ -425,7 +425,6 @@ instanceDefineQ[class_,instance_] :=
     KeyExistsQ[instanceData[class],instance];
 instanceDefineQ[class_,instanceList_List] :=
     instanceDefineQ`kernel[class,instanceList];
-    
 
 instanceDefineQ`kernel[class_,instanceList_] :=
     <|
